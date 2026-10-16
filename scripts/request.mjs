@@ -11,7 +11,7 @@ async function api(path) {
 const branch = await api('branches/main');
 if (branch.commit.sha !== sha) throw Error('Select the current reviewed main SHA; arbitrary branches cannot be signed');
 const release = await api('releases/latest');
-if (!newer(v, release.tag_name.slice(1))) throw Error('Version must be newer than the currently published release');
+if (process.env.VALIDATION_ONLY !== 'true' && !newer(v, release.tag_name.slice(1))) throw Error('Version must be newer than the currently published release');
 const source = async path => Buffer.from((await api(`contents/${path}?ref=${sha}`)).content, 'base64').toString('utf8');
 if (!new RegExp(`^version = "${v.replaceAll('.', '\\.')}"$`, 'm').test(await source('pyproject.toml'))) throw Error('Source version mismatch');
 const config = JSON.parse(await source('src/bongo_chat/update-config.json'));

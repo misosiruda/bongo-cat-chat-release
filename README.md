@@ -18,6 +18,8 @@ gh workflow run publish-approved-release.yml --repo misosiruda/bongo-cat-chat --
 
 두 PC 어디서든 같은 명령 또는 브라우저를 사용한다. PC별 개인키·항상 켜진 상대 PC·저장소 간 장기 게시 토큰은 필요하지 않다. 앱 저장소의 게시 작업은 자기 저장소에만 유효한 `GITHUB_TOKEN`을 사용한다.
 
+제품 버전을 새로 공개하지 않고 실제 빌드 경로만 검사하려면 `validation_only=true`로 요청한다. 이 모드는 현재 main의 기존 버전도 빌드·패키징·파일 해시 검사까지 수행하며 서명 job과 후보 게시를 실행하지 않는다. 운영 서명과 게시 검증으로 간주하지 않는다.
+
 ## 신뢰 경계
 
 - 요청 단계는 현재 앱 main SHA, 소스 버전, 고정 저장소·공개키, 최신 릴리스보다 높은 버전을 검사한다.
@@ -43,6 +45,17 @@ gh workflow run verify-key.yml --repo misosiruda/bongo-cat-chat-release --ref ma
 `Verify existing update key`는 승인 후 이미 공개된 dev11 manifest에 다시 서명하고 기존 서명과 일치하는지만 확인한다. 새 버전·태그·릴리스는 만들지 않는다.
 
 클라우드 검증과 독립 복구용 백업 확인 전에는 양쪽 PC의 기존 키를 삭제하지 않는다. 두 PC의 기존 개발 계정 키 사본을 모두 제거한 뒤에만 로컬 키 접근까지 차단된 전환 완료로 기록한다. DPAPI 파일만 복사한 것은 다른 PC·계정에서 쓸 수 있는 복구 백업이 아니다. GitHub Secret 원문은 나중에 다시 읽을 수 없으므로 이를 유일한 복구 수단으로 삼지 않는다.
+
+2026-10-16 [클라우드 키 검증](https://github.com/misosiruda/bongo-cat-chat-release/actions/runs/38862746955)은 사용자의 실제 Environment 승인 후 성공했다. 공개 dev11 서명과 바이트 단위로 일치하며 새 릴리스는 게시하지 않았다. 독립 백업 존재 여부는 사용자가 확인하지 못했으므로 두 PC 키 사본 회수는 보류한다.
+
+복구 백업은 아래 도구로 USB 등 별도 위치에 암호화해 저장한다. 신뢰된 로컬 Python과 터미널에서 실행하고, 비밀번호는 터미널의 숨김 입력에만 넣는다. 비밀번호를 채팅·명령 인자·환경변수로 전달하지 않는다. cryptography가 설치된 신뢰된 Python이 필요하다. export 뒤 새 프로세스에서 verify를 실행해 실제 복원을 확인한다.
+
+```powershell
+<신뢰된-python.exe> -I scripts/recovery-key.py export --dpapi <기존-키.dpapi> --backup <별도-저장장치>/bongo-update-key.backup
+<신뢰된-python.exe> -I scripts/recovery-key.py verify --backup <별도-저장장치>/bongo-update-key.backup
+```
+
+백업은 고정 scrypt 비용과 AES-256-GCM으로 보호하며 복원 결과를 기존 공개키와 대조한다. 원본 키를 삭제하거나 교체하지 않는다. 백업 파일과 복구 암호는 별도로 보관한다. 실제 사용자가 새 프로세스 검증과 별도 보관을 확인하기 전에는 합성 테스트를 운영 복구 완료로 간주하지 않는다.
 
 ## 검증
 

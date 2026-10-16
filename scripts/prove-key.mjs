@@ -1,0 +1,12 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import { sign, createHash } from 'node:crypto';
+import { privateObject, manifest, PUBLIC_KEY } from './sign.mjs';
+const raw = await readFile(new URL('../fixtures/dev11-manifest.json', import.meta.url));
+const expected = Buffer.from((await readFile(new URL('../fixtures/dev11-signature.txt', import.meta.url), 'utf8')).trim(), 'base64');
+manifest(raw, '0.1.0.dev11');
+const signature = sign(null, raw, privateObject(process.env.UPDATE_SIGNING_KEY));
+delete process.env.UPDATE_SIGNING_KEY;
+if (!signature.equals(expected)) throw Error('Existing published signature mismatch');
+const proof = {public_key: PUBLIC_KEY, manifest_sha256: createHash('sha256').update(raw).digest('hex'), matches_published_dev11_signature: true, release_published: false};
+await writeFile('key-proof.json', JSON.stringify(proof, null, 2) + '\n');
+console.log('Existing dev11 signature reproduced; no new update authorized or published.');

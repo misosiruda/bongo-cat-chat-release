@@ -1,0 +1,163 @@
+name: Request release candidate
+run-name: Release ${{ inputs.version }} from ${{ inputs.source_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: '검토한 앱 main 커밋의 전체 SHA (40자리)'
+        required: true
+        type: string
+      version:
+        description: '소스에 기록된 새 버전 (예: 0.1.0.dev12)'
+        required: true
+        type: string
+      allow_unsigned_windows:
+        description: 'Windows Authenticode 미서명 개발판임을 확인'
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: release-candidate
+  cancel-in-progress: false
+env:
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_VERSION: ${{ inputs.version }}
+  SIGNER_SHA: ${{ github.sha }}
+  RELEASE_RUN_ID: ${{ github.run_id }}
+  RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+jobs:
+  request:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: node --test
+      - run: node scripts/request.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALLOW_UNSIGNED: ${{ inputs.allow_unsigned_windows }}
+  build:
+    needs: request
+    runs-on: windows-2022
+    timeout-minutes: 60
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: release-tools
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: misosiruda/bongo-cat-chat
+          ref: ${{ inputs.source_sha }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.3'
+          architecture: x64
+      - name: Build and test without signing or publication credentials
+        working-directory: source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { throw 'venv failed' }
+          ./.venv/Scripts/python.exe -m pip install -r requirements-lock.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencies failed' }
+          $nsis = ./tools/prepare-nsis.ps1
+          $env:BONGO_TEST_NSIS_PATH = $nsis
+          ./tools/prepare-compatibility.ps1
+          ./.venv/Scripts/python.exe tools/prepare_source_notices.py --cache dist/sources --download
+          if ($LASTEXITCODE -ne 0) { throw 'Source verification failed' }
+          ./.venv/Scripts/python.exe -m pytest -q --junitxml=dist/test-results.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          ./packaging/build.ps1 -OutputRoot dist/candidate -AllowUnsigned
+          ./.venv/Scripts/python.exe tools/verify_review_bundle.py --bundle dist/candidate/BongoCatChat --evidence dist/evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen verification failed' }
+          ./packaging/build-setup.ps1 -Bundle dist/candidate/BongoCatChat -NsisPath $nsis -OutputRoot dist/setup -AllowUnsigned
+          python ../release-tools/scripts/package.py --source . --bundle dist/candidate/BongoCatChat --setup dist/setup --sources dist/sources --output ../candidate --version $env:RELEASE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: upload
+        with:
+          name: unsigned-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: candidate-test-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            source/dist/test-results.xml
+            source/dist/evidence/
+          if-no-files-found: ignore
+          retention-days: 14
+  inspect:
+    needs: build
+    runs-on: ubuntu-24.04
+    outputs:
+      files_sha256: ${{ steps.summary.outputs.files_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: candidate
+          merge-multiple: true
+      - run: node scripts/summary.mjs candidate candidate-hashes.json
+        id: summary
+  sign:
+    needs: [build, inspect]
+    runs-on: ubuntu-24.04
+    environment:
+      name: release-signing
+      url: https://github.com/misosiruda/bongo-cat-chat-release/actions/runs/${{ github.run_id }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: candidate
+          merge-multiple: true
+      - name: Sign only the exact approved candidate
+        run: node scripts/sign.mjs sign candidate
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          APPROVED_FILES_SHA256: ${{ needs.inspect.outputs.files_sha256 }}
+      - run: node scripts/sign.mjs verify candidate
+      - name: Publish signed staging assets, never the application update feed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="approved-v${RELEASE_VERSION}-${RELEASE_RUN_ID}-${RELEASE_RUN_ATTEMPT}"
+          printf 'Source: %s\nSigner: %s\nWindows Authenticode: unsigned development build\n' "$SOURCE_SHA" "$SIGNER_SHA" > notes.txt
+          gh release create "$tag" candidate/* --repo misosiruda/bongo-cat-chat-release --target "$SIGNER_SHA" --prerelease --latest=false --title "승인된 배포 후보 ${RELEASE_VERSION}" --notes-file notes.txt
+          printf '\n원래 앱 저장소의 Publish approved release 작업에서 `%s`를 지정하세요.\n' "$tag" >> "$GITHUB_STEP_SUMMARY"

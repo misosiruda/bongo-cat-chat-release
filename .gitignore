@@ -1,0 +1,8 @@
+out/
+dist/
+node_modules/
+__pycache__/
+*.dpapi
+*.pem
+*.key
+.env*

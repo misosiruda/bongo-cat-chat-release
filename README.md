@@ -55,6 +55,8 @@ gh workflow run verify-key.yml --repo misosiruda/bongo-cat-chat-release --ref ma
 <신뢰된-python.exe> -I scripts/recovery-key.py verify --backup <별도-저장장치>/bongo-update-key.backup
 ```
 
+재해 복구 시에는 `restore --backup <암호화-백업> --dpapi <새로운-경로>/restored-key.dpapi`로 기존 키를 현재 Windows 사용자 범위에 다시 보호한다. 기존 파일을 덮어쓰거나 공개키를 바꾸지 않는다. 복원한 파일은 운영 개발 폴더에 상시 남겨 두지 않고 승인된 키 이전/복구에만 사용한다.
+
 백업은 고정 scrypt 비용과 AES-256-GCM으로 보호하며 복원 결과를 기존 공개키와 대조한다. 원본 키를 삭제하거나 교체하지 않는다. 백업 파일과 복구 암호는 별도로 보관한다. 실제 사용자가 새 프로세스 검증과 별도 보관을 확인하기 전에는 합성 테스트를 운영 복구 완료로 간주하지 않는다.
 
 ## 검증

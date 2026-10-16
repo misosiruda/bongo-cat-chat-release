@@ -5,10 +5,13 @@ Run using a trusted Python environment with -I.
 """
 import argparse
 import base64
+import ctypes
+from ctypes import wintypes
 import getpass
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import secrets
 import sys
@@ -50,9 +53,30 @@ def recover(payload, password, expected_public_key=PUBLIC_KEY):
     return raw
 
 
+def protect_for_current_user(raw):
+    if os.name != 'nt':
+        raise RuntimeError('Restoring a DPAPI key requires Windows')
+    class Blob(ctypes.Structure):
+        _fields_ = [('size', wintypes.DWORD), ('data', ctypes.POINTER(ctypes.c_ubyte))]
+    buffer = (ctypes.c_ubyte * len(raw)).from_buffer_copy(raw)
+    incoming, outgoing = Blob(len(raw), buffer), Blob()
+    function = ctypes.WinDLL('crypt32', use_last_error=True).CryptProtectData
+    function.argtypes = [ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(Blob)]
+    function.restype = wintypes.BOOL
+    if not function(ctypes.byref(incoming), None, None, None, None, 1, ctypes.byref(outgoing)):
+        raise RuntimeError('DPAPI encryption failed')
+    free = ctypes.WinDLL('kernel32').LocalFree
+    free.argtypes, free.restype = [ctypes.c_void_p], ctypes.c_void_p
+    try:
+        return ctypes.string_at(outgoing.data, outgoing.size)
+    finally:
+        ctypes.memset(buffer, 0, len(raw))
+        free(outgoing.data)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['export', 'verify'])
+    parser.add_argument('mode', choices=['export', 'verify', 'restore'])
     parser.add_argument('--dpapi', type=Path)
     parser.add_argument('--backup', type=Path, required=True)
     args = parser.parse_args()
@@ -88,8 +112,16 @@ def main():
             raise ValueError('Backup too large')
         payload = args.backup.read_bytes()
         password = getpass.getpass('Recovery passphrase: ')
-        recover(payload, password)
-        print('Recovered key matches the existing client public key. No key written or replaced.')
+        raw = recover(payload, password)
+        if args.mode == 'restore':
+            if not args.dpapi or args.dpapi.suffix != '.dpapi' or args.dpapi.exists():
+                raise ValueError('Use --dpapi with a new .dpapi file; never overwrite an existing key')
+            protected = protect_for_current_user(raw)
+            with args.dpapi.open('xb') as stream:
+                stream.write(protected)
+            print('Existing key restored into a NEW current-user DPAPI file. Public key unchanged.')
+        else:
+            print('Recovered key matches the existing client public key. No key written or replaced.')
     print('Encrypted backup SHA-256: ' + hashlib.sha256(payload).hexdigest())
 
 

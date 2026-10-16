@@ -16,6 +16,11 @@ on:
         required: true
         default: false
         type: boolean
+      validation_only:
+        description: '현재 버전도 키 없이 빌드·패키징만 검사 (서명·후보 게시 생략)'
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -43,6 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ALLOW_UNSIGNED: ${{ inputs.allow_unsigned_windows }}
+          VALIDATION_ONLY: ${{ inputs.validation_only }}
   build:
     needs: request
     runs-on: windows-2022
@@ -127,6 +133,7 @@ jobs:
         id: summary
   sign:
     needs: [build, inspect]
+    if: ${{ !inputs.validation_only }}
     runs-on: ubuntu-24.04
     environment:
       name: release-signing

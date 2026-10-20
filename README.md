@@ -28,6 +28,7 @@ gh workflow run publish-approved-release.yml --repo misosiruda/bongo-cat-chat --
 - 승인 전 파일 목록 해시와 서명 시 파일 목록 해시를 비교한다. 원래 manifest 형식·Ed25519 원본 바이트 서명·공개키를 유지한다.
 - 추가 `release-approval.json`은 source SHA, signer SHA, 실행 ID·attempt, 모든 설치·소스·업데이트 자산 해시를 결합한다. 별도 도메인 접두사를 서명하여 업데이트 manifest 서명과 구분한다.
 - 게시기는 서명된 승인 기록, 성공한 서명 워크플로 실행, source main 포함 여부와 모든 파일을 확인한다. 기존 태그·릴리스는 교체하지 않는다. 새 draft 업로드를 다시 내려받아 검증한 뒤 공개한다. 실패한 draft/tag는 조사 후 수동 처리한다.
+- 초안 생성 API가 반환한 Release ID를 유지하며 업로드·조회·공개에 사용한다. 초안 파일은 Asset ID로 내려받는다. 공개 전 파일 이름·ID·크기·업로드 상태와 실제 바이트의 서명·해시를 검사하고, 검증 중 자산 교체도 거부한다. 공개 후 같은 ID가 최신 일반 릴리스로 조회되어야 성공한다. 태그 조회 API는 이미 공개된 승인 후보에만 사용한다.
 - 이 저장소의 main 변경도 PR·검사를 거친다. 개발 저장소 쓰기 권한을 추가한다고 서명 저장소 권한까지 부여하지 않는다.
 - 단독 운영자는 요청과 수동 승인을 둘 다 할 수 있다. 이것은 두 사람의 독립 승인이 아니다. GitHub 관리자 계정 또는 신뢰된 서명 도구 침해는 잔여 위험이다. Environment Secret은 비추출형 HSM이 아니다.
 - 서명은 무결성과 배포 권한을 확인한다. 코드의 악성 여부, 순정 게임·다른 PC 인수, Windows 게시자 신뢰를 보증하지 않는다. SignPath/Authenticode는 별도 작업이다.
@@ -67,3 +68,7 @@ python -m unittest discover -s test
 ```
 
 합성 테스트는 잘못된 키·manifest·파일 변경·버전·출처·실행 attempt·체크섬을 거부하는지 검사한다. 공개 dev11 fixture는 기존 클라이언트 공개키와 실제 공개 서명의 호환성을 검사한다. 이는 새 Windows 빌드 또는 실제 자동 업데이트 적용 검증을 대신하지 않는다.
+
+`test/publish.test.mjs`는 초안의 태그 조회가 404인 상황에서도 ID로 게시를 완료하는 흐름과 누락·중복·변조·전송 실패 시 공개 차단을 합성 API로 검사한다. 운영 토큰·개인키·실제 태그·릴리스는 사용하지 않는다. HTTP 전송은 스트리밍하며 다운로드가 예상 크기를 초과하거나 미달하면 중단한다.
+
+2026-10-16 dev12의 [게시 실행](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38870480192)은 초안 생성 후 태그 조회 404로 중단됐고, [동일 초안을 별도로 검증·공개해 복구](https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev12)했다. 이미 공개된 버전은 재실행하지 않는다. 이 수정은 앱 저장소의 게시 워크플로에서 고정 도구 커밋을 갱신해야 적용된다. 실패 시 로그의 Release ID로 초안을 조사하며 자동 삭제·덮어쓰기·게시 재시도는 수행하지 않는다.

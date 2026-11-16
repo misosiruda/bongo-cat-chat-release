@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { commit, version, newer, verifyApproved, fileDigest, assetNames, REPOSITORY } from './sign.mjs';
 import { publishRelease, releaseClient } from './publish-release.mjs';
+import { defaultNotes } from './release-copy.mjs';
 
 const CONTROL = 'misosiruda/bongo-cat-chat-release';
 const tag = process.env.CANDIDATE_TAG;
@@ -34,7 +35,7 @@ const comparison = await api(REPOSITORY, `compare/${expected.source_sha}...main`
 if (!['identical', 'ahead'].includes(comparison.status)) throw Error('Approved source is not on application main');
 const latest = await api(REPOSITORY, 'releases/latest');
 if (!newer(v, latest.tag_name.slice(1))) throw Error('Published version cannot be replaced or downgraded');
-const notes = `# Bongo Cat Chat ${v} 개발판\n\n- 소스 커밋: ${expected.source_sha}\n- 승인된 후보: https://github.com/${CONTROL}/releases/tag/${tag}\n- 서명 작업: https://github.com/${CONTROL}/actions/runs/${match[2]}\n- 기존 공개키의 Ed25519 업데이트 서명과 모든 자산 해시를 검증했습니다.\n- Windows Authenticode 미서명 개발판입니다.\n- 실제 게임·다른 PC·장시간 실행 인수는 이 배포 작업의 검증 범위에 포함되지 않습니다.\n`;
+const notes = defaultNotes(v, expected.source_sha, tag, match[2]);
 if (process.env.DRY_RUN !== 'false') {
   console.log('Dry run: all signatures, file hashes and provenance verified; no release or tag created.');
 } else {

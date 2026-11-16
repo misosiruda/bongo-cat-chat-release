@@ -5,7 +5,7 @@
 ## 배포 요청
 
 1. 앱 버전 변경을 검토·검사한 뒤 앱 `main`에 병합한다. 앱 main의 전체 SHA와 버전을 확인한다.
-2. [Request release candidate](https://github.com/misosiruda/bongo-cat-chat-release/actions/workflows/release.yml)에서 `main`, 소스 SHA, 버전을 지정한다. 현재 경로는 Windows Authenticode 미서명 개발판이며 명시적 확인이 필요하다.
+2. [Request release candidate](https://github.com/misosiruda/bongo-cat-chat-release/actions/workflows/release.yml)에서 `main`, 소스 SHA, 버전을 지정한다. 현재 경로는 Windows Authenticode 미서명 빌드이며 명시적 확인이 필요하다.
 3. 키 없는 Windows 실행기에서 테스트·빌드·오프라인 화면 검사를 수행한다. 별도 Ubuntu 작업이 실제 파일 해시를 요약한다.
 4. 소스 diff, 빌드 결과, 파일 해시를 확인하고 `release-signing` 배포를 직접 승인한다. 승인만으로 악성 코드가 자동 탐지되는 것은 아니다.
 5. 성공한 실행은 `approved-v<version>-<run-id>-<attempt>` prerelease에 서명된 자산을 보관한다. 이 위치는 기존 앱의 업데이트 피드가 아니다.

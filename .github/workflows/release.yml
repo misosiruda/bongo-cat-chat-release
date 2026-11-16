@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       allow_unsigned_windows:
-        description: 'Windows Authenticode 미서명 개발판임을 확인'
+        description: 'Windows Authenticode 미서명 빌드임을 확인'
         required: true
         default: false
         type: boolean
@@ -165,6 +165,6 @@ jobs:
         run: |
           set -euo pipefail
           tag="approved-v${RELEASE_VERSION}-${RELEASE_RUN_ID}-${RELEASE_RUN_ATTEMPT}"
-          printf 'Source: %s\nSigner: %s\nWindows Authenticode: unsigned development build\n' "$SOURCE_SHA" "$SIGNER_SHA" > notes.txt
+          printf 'Source: %s\nSigner: %s\nWindows Authenticode: unsigned build\n' "$SOURCE_SHA" "$SIGNER_SHA" > notes.txt
           gh release create "$tag" candidate/* --repo misosiruda/bongo-cat-chat-release --target "$SIGNER_SHA" --prerelease --latest=false --title "승인된 배포 후보 ${RELEASE_VERSION}" --notes-file notes.txt
           printf '\n원래 앱 저장소의 Publish approved release 작업에서 `%s`를 지정하세요.\n' "$tag" >> "$GITHUB_STEP_SUMMARY"

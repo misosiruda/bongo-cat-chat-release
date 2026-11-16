@@ -12,7 +12,13 @@ const expected = {version: '0.1.0.dev12', source_sha: 'a'.repeat(40), signer_sha
 const releaseId = 741;
 const tag = `v${expected.version}`;
 
-async function fixture(t) {
+async function fixture(t, releaseVersion = expected.version) {
+  const candidate = {...expected, version: releaseVersion};
+  return fixtureWithVersion(t, candidate);
+}
+
+async function fixtureWithVersion(t, expected) {
+  const tag = `v${expected.version}`;
   const root = await mkdtemp(join(tmpdir(), 'bongo-publish-'));
   t.after(() => rm(root, {recursive: true, force: true}));
   const approvedDirectory = join(root, 'approved');
@@ -75,6 +81,15 @@ test('Draft publication uses the created ID even when tag lookup returns 404', a
     'POST git/refs', 'POST releases', `GET releases/${releaseId}`, `GET releases/${releaseId}`,
     `PATCH releases/${releaseId}`, 'GET releases/latest',
   ]);
+});
+
+test('Stable candidate is published with its stable title through the same verification gates', async t => {
+  const f = await fixture(t, '1.0.0');
+  await f.run();
+  const created = f.calls.find(c => c.path === 'releases').body;
+  assert.equal(created.name, 'Bongo Cat Chat 1.0.0');
+  assert.equal(created.tag_name, 'v1.0.0');
+  assert.equal(f.state.draft, false);
 });
 
 test('Existing tags are never replaced and failed creation is not retried', async t => {

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { REPOSITORY, verifyApproved } from './sign.mjs';
+import { releaseTitle } from './release-copy.mjs';
 
 const validId = value => Number.isSafeInteger(value) && value > 0;
 const jsonOptions = (method, body) => ({method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
@@ -68,7 +69,7 @@ export async function publishRelease({expected, files, notes, approvedDirectory,
   const tag = `v${expected.version}`;
   await client.api('git/refs', jsonOptions('POST', {ref: `refs/tags/${tag}`, sha: expected.source_sha}));
   const created = await client.api('releases', jsonOptions('POST', {
-    tag_name: tag, target_commitish: expected.source_sha, name: `Bongo Cat Chat ${expected.version} 개발판`,
+    tag_name: tag, target_commitish: expected.source_sha, name: releaseTitle(expected.version),
     body: notes, draft: true, prerelease: false,
   }));
   const id = created.id;

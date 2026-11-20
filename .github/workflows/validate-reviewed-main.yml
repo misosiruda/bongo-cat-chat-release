@@ -1,0 +1,43 @@
+name: Validate reviewed app main
+run-name: Validate ${{ inputs.version }} from ${{ inputs.source_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: '검토한 앱 main 커밋 전체 SHA (40자리 소문자)'
+        required: true
+        type: string
+      version:
+        description: '해당 커밋의 앱 버전'
+        required: true
+        type: string
+      allow_unsigned_windows:
+        description: 'Authenticode 미서명 Windows 시험 빌드임을 확인'
+        required: true
+        default: false
+        type: boolean
+permissions: {}
+concurrency:
+  group: validation-handoff
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: github.repository == 'misosiruda/bongo-cat-chat-release' && github.ref == 'refs/heads/main' && github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: node scripts/validation-handoff.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          ALLOW_UNSIGNED: ${{ inputs.allow_unsigned_windows }}

@@ -72,3 +72,21 @@ python -m unittest discover -s test
 `test/publish.test.mjs`는 초안의 태그 조회가 404인 상황에서도 ID로 게시를 완료하는 흐름과 누락·중복·변조·전송 실패 시 공개 차단을 합성 API로 검사한다. 운영 토큰·개인키·실제 태그·릴리스는 사용하지 않는다. HTTP 전송은 스트리밍하며 다운로드가 예상 크기를 초과하거나 미달하면 중단한다.
 
 2026-10-16 dev12의 [게시 실행](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38870480192)은 초안 생성 후 태그 조회 404로 중단됐고, [동일 초안을 별도로 검증·공개해 복구](https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev12)했다. 이미 공개된 버전은 재실행하지 않는다. 이 수정은 앱 저장소의 게시 워크플로에서 고정 도구 커밋을 갱신해야 적용된다. 실패 시 로그의 Release ID로 초안을 조사하며 자동 삭제·덮어쓰기·게시 재시도는 수행하지 않는다.
+
+## 검토한 main의 Windows 검증만 요청
+
+Actions의 `Validate reviewed app main`을 이 저장소의 `main`에서 수동 실행합니다.
+검토한 앱 main의 전체 SHA와 그 소스에 기록된 버전을 입력하고 Windows 시험 빌드가
+Authenticode 미서명임을 확인합니다. 이 경로는 기존 `Request release candidate`를
+`validation_only=true`로만 호출하며 Windows 빌드·시험·패키지 검사를 실행합니다.
+서명 환경을 사용하거나 스테이징·공개 릴리스를 생성하지 않습니다. 이 검사는 Steam
+게임 다운로드, 실제 로비 검사, 공개 피드의 설치본 업그레이드를 실행하지 않습니다.
+
+헬퍼 실행 요약의 링크로 검증 실행을 확인합니다. 동일 SHA·버전의 기존 검증이
+있으면 새 실행을 만들지 않습니다. 앞선 요청의 상태가 불명확하거나 API 응답이
+끊겼다면 기존 실행을 확인하세요. 헬퍼를 재실행하거나 별도 요청을 만들지 마세요.
+필요한 실패 작업의 재검사는 원본 검증 실행과 실패 원인을 확인한 후 별도로 결정합니다.
+
+다른 배포 후보 워크플로가 진행 중이면 새 검증을 요청하지 않습니다. GitHub의
+기존 실행 조회와 새 요청은 하나의 원자적 동작이 아니므로, 헬퍼 확인과 동시에
+`Request release candidate`를 직접 실행하지 마세요.

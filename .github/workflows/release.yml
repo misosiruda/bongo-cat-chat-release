@@ -1,5 +1,5 @@
 name: Request release candidate
-run-name: Release ${{ inputs.version }} from ${{ inputs.source_sha }}
+run-name: ${{ inputs.validation_only && 'Validation only' || 'Release' }} ${{ inputs.version }} from ${{ inputs.source_sha }}
 on:
   workflow_dispatch:
     inputs:
